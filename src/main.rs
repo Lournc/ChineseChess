@@ -2,7 +2,7 @@
 
 use std::ops::Not;
 use eframe::egui;
-use eframe::egui::{FontId, RichText};
+use eframe::egui::{Color32, FontId, RichText};
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -114,7 +114,7 @@ impl eframe::App for MyApp {
             draw_palace(&painter, &top_left, 3, 7, grid_size, stroke);
 
             // 检测鼠标点击位置
-            if response.clicked() {
+             if response.clicked() {
                 self.log.push_str(&"Mouse Clicked\n");
                 if let Some(pointer_pos) = response.interact_pointer_pos() {
                     let grid_x = ((pointer_pos.x - top_left.x) / grid_size).round() as usize;
@@ -125,16 +125,16 @@ impl eframe::App for MyApp {
                                                    self.pieces[selected_index].0, self.pieces[selected_index].1, grid_x, grid_y));
 
                         // 检查移动是否合法
-                        let (valid_move, new_x, new_y) =
+                        let (validate_move, new_x, new_y) =
                             validate_move(&self.pieces[selected_index], (grid_x, grid_y), &self.pieces, self.now, &mut self.log);
-                        self.log.push_str(&format!("Move valid: {}\n", valid_move));
-                        if valid_move {
+                        self.log.push_str(&format!("Move valid: {}\n", validate_move));
+                        if validate_move {
                             // 更新棋子位置
                             let old_x = self.pieces[selected_index].0;
                             let old_y = self.pieces[selected_index].1;
+
                             self.pieces[selected_index].0 = new_x;
                             self.pieces[selected_index].1 = new_y;
-                            self.selected_piece = None;
                             self.now = !self.now;  // 切换玩家
                             self.log.push_str(&format!("Piece moved from ({}, {}) to ({}, {})\n", old_x, old_y, new_x, new_y));
                             // 判断新位置有没有棋子，有的话删除该棋子
@@ -149,12 +149,10 @@ impl eframe::App for MyApp {
                                     self.winner.push_str(if self.now { "Player 2 win!\n" } else { "Player 1 win!\n" });
                                     self.pieces = get_initial_pieces();
                                     self.now = true;
-                                    self.selected_piece = None;
                                 }
                             }
-                        } else {
-                            self.selected_piece = None;
                         }
+                        self.selected_piece = None;
                     } else {
                         // 选择棋子
                         self.selected_piece = self.pieces.iter()
@@ -167,12 +165,7 @@ impl eframe::App for MyApp {
 
 
             // 绘制棋子
-            for (i, piece) in self.pieces.iter_mut().enumerate() {
-                let piece_center = egui::pos2(
-                    top_left.x + piece.0 as f32 * grid_size,
-                    top_left.y + piece.1 as f32 * grid_size,
-                );
-
+            for (_, piece) in self.pieces.iter_mut().enumerate() {
                 draw_piece(&painter, top_left, piece.0, piece.1, grid_size, &piece.2, piece.3);
             }
         });
@@ -283,14 +276,23 @@ fn setup_custom_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
-fn validate_move(piece: &(usize, usize, String, egui::Color32), target: (usize, usize), pieces: &[(usize, usize, String, egui::Color32)], now: bool, log: &mut String) -> (bool, usize, usize) {
+fn validate_move(piece: &(usize, usize, String, Color32), target: (usize, usize), pieces: &[(usize, usize, String, Color32)], now: bool, log: &mut String) -> (bool, usize, usize) {
     let (x, y, kind, color) = piece;
     let (tx, ty) = target;
 
     // 检查是否当前玩家的棋子
-    if ((now && *color == egui::Color32::RED) || (!now && *color == egui::Color32::BLACK)).not() {
+    if ((now && *color == Color32::RED) || (!now && *color == Color32::BLACK)).not() {
         log.push_str(&format!("now:{}, color{}\n", now, if *color == egui::Color32::RED { &"RED" } else { &"BLACK" }));
         return (false, *x, *y); // 如果不是当前玩家的棋子，移动无效
+    }
+    // 判断选择位置是否是自己的棋子
+    if let Some(color) = pieces.iter()
+        .enumerate()
+        .find(|(_, piece)| piece.0 == tx && piece.1 == ty)
+        .map(|(_, (_,_,_,color))| color) {
+        if (now && *color == Color32::RED) || (!now && *color == Color32::BLACK) {
+            return (false, *x, *y);
+        }
     }
 
     let is_valid = match kind.as_str() {
